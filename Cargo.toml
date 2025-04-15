@@ -1,0 +1,7 @@
+[package]
+name = "fake-db"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+fake = "4.3.0"
