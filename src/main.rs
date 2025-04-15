@@ -1,7 +1,6 @@
+use fake::faker::name::raw::Name;
 use fake::{Fake, Faker};
-use fake::rand::rngs::StdRng;
 use fake::rand::SeedableRng;
-
 
 #[derive(Debug)]
 enum Input {
@@ -12,7 +11,17 @@ enum Input {
 
 
 fn main() {
+	let mut rng = fake::rand::rng();
 
+	let name: String = Name(fake::locales::EN).fake_with_rng(&mut rng);
+	println!("name {:?}", name);
+
+	let num: f64 = Faker.fake_with_rng(&mut rng);
+	println!("num {:?}", num);
+
+	let num: f64 = 40.0f64.fake_with_rng(&mut rng);
+	// .fake_with_rng(&mut rng);
+	println!("num {:?}", num);
 
 	// // types U can `be used to generate fake value T, if `T: Dummy<U>`
 	// println!("String {:?}", (8..20).fake::<String>());
