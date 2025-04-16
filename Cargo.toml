@@ -4,4 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-fake = "4.3.0"
+anyhow = "1.0.98"
+daggy = "0.8.1"
+fake = "4.3"
+nom = "8"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }

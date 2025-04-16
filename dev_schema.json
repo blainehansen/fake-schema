@@ -1,0 +1,6 @@
+{
+	"first_name": "FirstName",
+	"middle_name": "Maybe(LastName, 0.50)",
+	"last_name": "LastName",
+  "full_name": "StrJoin(' ', first_name, middle_name, last_name)"
+}
