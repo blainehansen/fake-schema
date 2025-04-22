@@ -2,3 +2,6 @@
 
 graph.dot
 graph.png
+
+*.local.*
+*.cache.*

@@ -1,0 +1,160 @@
+// https://clickhouse.com/docs/getting-started/example-datasets/star-schema
+{
+	// "countries": "RefUrl('https://example.com/countries.json')",
+	"countries": "RefFile('ssb-cities.jsonc')",
+
+	// --- Table Definitions ---
+	"cities": {
+		"#util": "List",
+		"#count": "Range(100..200)",
+		"#def": {
+			// CurrentIncrementingId is special, it must be used in a List combinator
+			"id": "CurrentIncrementingId",
+			// @ prefixed fields are just "choice" fields, they aren't actually emitted into the final object, just used for generation
+			"@country": "ChooseOne(~countries)",
+			// paths with no prefix (~, ., ..) are assumed as .
+			"name": "StringConcat(ChooseOne(@country.city_prefixes), ' ', ChooseOne(@country.city_suffixes))",
+			"population": "Uint(1,000..10,000,000)"
+		}
+		// every util allows a full unambiguous declaration in { #util } form, for when things are more complicated
+		// { "#util": "Range", "#min": 5000, "#max": 10000 }
+		// and a shorthand when no nesting is necessary
+		// "Range(5,000..10,000)"
+
+		// even paths! which would be annoying to write
+	},
+
+	// a reusable declaration
+	"$Customer": {
+		"id": "CurrentIncrementingId",
+		"name": "FullName(@city.@country.locale)",
+		"@city": "ChooseOne(~cities)",
+		"address": "StreetAddress(@city.@country.locale)",
+		"city_id": "@city.id",
+		"phone": "Phone(@city.@country.locale)",
+		"market_segment": "Maybe(ChooseOne(['low', 'medium', 'high']), 0.80)"
+	},
+	"customers": {
+		"#util": "List",
+		"#count": "Range(5,000..10,000)",
+		"#def": "$Customer",
+		// this is an optional argument that gives any number of guaranteed records to include
+		"#include": [
+			// an example of the Merge operator
+			{ "#util": "Merge", "#left": { "name": "Wassup Dude", "@city": "FindWhereEq(~cities, @country.id, 1)" }, "#right": "$Customer" }
+		]
+	},
+	// CREATE TABLE customer
+	// (
+	// 	C_CUSTKEY       UInt32,
+	// 	C_NAME          String,
+	// 	C_ADDRESS       String,
+	// 	C_CITY          LowCardinality(String),
+	// 	C_NATION        LowCardinality(String),
+	// 	C_REGION        LowCardinality(String),
+	// 	C_PHONE         String,
+	// 	C_MKTSEGMENT    LowCardinality(String)
+	// )
+
+	"parts": {
+		"#util": "List",
+		"#count": "Range(1,000..2,000)",
+		"#def": {
+			"part_id": "CurrentIncrementingId",
+			"name": "ProductName",
+			"manufacturer": "ChooseOne(['MFGR#1', 'MFGR#2', 'MFGR#3', 'MFGR#4', 'MFGR#5'])",
+			"category": "ChooseOne(['CATEGORY#1', 'CATEGORY#2', 'CATEGORY#3', 'CATEGORY#4', 'CATEGORY#5'])",
+			"brand": "ChooseOne(['BRAND#1', 'BRAND#2', 'BRAND#3', 'BRAND#4', 'BRAND#5'])",
+			"color": "ChooseOne(['Red', 'Green', 'Blue', 'Yellow', 'Black', 'White', 'Gray', 'Purple', 'Orange'])",
+			"type": "ChooseOne(['TYPE#1', 'TYPE#2', 'TYPE#3', 'TYPE#4', 'TYPE#5'])",
+			"size": "Uint(1..50)",
+			"container": "ChooseOne(['Container#1', 'Container#2', 'Container#3', 'Container#4', 'Container#5'])"
+		}
+	},
+	// CREATE TABLE part
+	// (
+	// 	P_PARTKEY       UInt32,
+	// 	P_NAME          String,
+	// 	P_MFGR          LowCardinality(String),
+	// 	P_CATEGORY      LowCardinality(String),
+	// 	P_BRAND         LowCardinality(String),
+	// 	P_COLOR         LowCardinality(String),
+	// 	P_TYPE          LowCardinality(String),
+	// 	P_SIZE          UInt8,
+	// 	P_CONTAINER     LowCardinality(String)
+	// )
+
+	"suppliers": {
+		"#util": "List",
+		"#count": "Range(200..500)",
+		"#def": {
+			"supplier_id": "CurrentIncrementingId",
+			"name": "CompanyName",
+			"address": "StreetAddress(@city.@country.locale)",
+			"@city": "ChooseOne(~cities)",
+			"city": "@city.name",
+			"nation": "@city.@country.name",
+			"region": "@city.@country.region",
+			"phone": "Phone(@city.@country.locale)"
+		}
+	},
+	// CREATE TABLE supplier
+	// (
+	// 	S_SUPPKEY       UInt32,
+	// 	S_NAME          String,
+	// 	S_ADDRESS       String,
+	// 	S_CITY          LowCardinality(String),
+	// 	S_NATION        LowCardinality(String),
+	// 	S_REGION        LowCardinality(String),
+	// 	S_PHONE         String
+	// )
+
+	"lineorders": {
+		"#util": "List",
+		// Note: Line order tables are typically much larger, adjust count as needed
+		"#count": "Range(50,000..100,000)",
+		"#def": {
+			// this doesn't make a lot of sense
+			// maybe this is where a FlatMap operator makes sense, to construct a list from a flattened bunch of sub lists
+			"@order_group": "Uint(1..15000)", // Simulate ~15k orders
+			"order_id": "@order_group",
+			"line_number": "CurrentIncrementingId(@order_group)", // Increment line number within the same order key group
+			"customer_id": "ChooseOne(~customers).id",
+			"part_id": "ChooseOne(~parts).id",
+			"supplier_id": "ChooseOne(~suppliers).id",
+			"order_date": "DateRecent(5, 'years')",
+			"order_priority": "ChooseOne(['1-URGENT', '2-HIGH', '3-MEDIUM', '4-NOT SPECIFIED', '5-LOW'])",
+			"ship_priority": "Uint(0..1)", // Assuming 0 or 1 based on schema type UInt8
+			"quantity": "Uint(1..50)",
+			"extended_price": "Uint(1000..50000)", // Price in cents or smallest unit
+			"order_total_price": "Uint(10000..1000000)", // Order total price
+			"discount": "Uint(0..10)", // Discount percentage
+			"revenue": "Uint(900..49000)", // Revenue derived from price and discount
+			"supply_cost": "Uint(500..25000)", // Cost from supplier
+			"tax": "Uint(0..8)", // Tax percentage
+			// open ended range using a date!
+			"commit_date": "Date(order_date..)",
+			"ship_mode": "ChooseOne(['REG AIR', 'AIR', 'RAIL', 'SHIP', 'TRUCK', 'MAIL', 'FOB'])"
+		}
+	}
+	// CREATE TABLE lineorder
+	// (
+	//     LO_ORDERKEY             UInt32,
+	//     LO_LINENUMBER           UInt8,
+	//     LO_CUSTKEY              UInt32,
+	//     LO_PARTKEY              UInt32,
+	//     LO_SUPPKEY              UInt32,
+	//     LO_ORDERDATE            Date,
+	//     LO_ORDERPRIORITY        LowCardinality(String),
+	//     LO_SHIPPRIORITY         UInt8,
+	//     LO_QUANTITY             UInt8,
+	//     LO_EXTENDEDPRICE        UInt32,
+	//     LO_ORDTOTALPRICE        UInt32,
+	//     LO_DISCOUNT             UInt8,
+	//     LO_REVENUE              UInt32,
+	//     LO_SUPPLYCOST           UInt32,
+	//     LO_TAX                  UInt8,
+	//     LO_COMMITDATE           Date,
+	//     LO_SHIPMODE             LowCardinality(String)
+	// )
+}
