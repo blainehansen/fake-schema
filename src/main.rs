@@ -46,7 +46,7 @@ fn generate_root(
 
 	inspect_object(&mut dags, &mut current_path, &decl);
 
-	dags.into_iter().find_map(|(k, v)| if k == "~" { Some(v) } else { None }).unwrap()
+	dbg!(dags).into_iter().find_map(|(k, v)| if k == "~" { Some(v) } else { None }).unwrap()
 
 	// let root_node = FieldNode { decl: Decl::Object(decl.clone()), field_dag: daggy::Dag::new(), children: HashMap::new() };
 
@@ -123,7 +123,12 @@ fn find_common_prefix(current_path: &Vec<String>, pat: &Pat) -> (String, String,
 	// if !pat.starts_with("~") {
 	// 	pat.exten
 	// }
-	let split_pat: Vec<_> = ["~"].into_iter().chain(pat.split(".")).collect();
+	let split_pat: Vec<_> = if pat.starts_with("~") {
+		pat.split(".").map(|i| i.to_string()).collect()
+	} else {
+		current_path.iter().take(current_path.len() - 1).map(|i| i.to_string()).chain(pat.split(".").map(|i| i.to_string())).collect()
+	};
+	println!("current_path={current_path:?} split_pat={split_pat:?} pat={pat:?}");
 
 	let mut common_prefix = vec![];
 	for (current_segment, pat_segment) in zip_longest(current_path, split_pat) {
@@ -207,6 +212,13 @@ fn main() -> anyhow::Result<()> {
 		("b".to_string(), Decl::Util(Util::Ref("a".to_string()))),
 		("c".to_string(), Decl::Util(Util::Ref("a".to_string()))),
 		("d".to_string(), Decl::Util(Util::Ref("c".to_string()))),
+
+		("o".to_string(), Decl::Object(HashMap::from([
+			("1".to_string(), Decl::Util(Util::FirstName)),
+			("2".to_string(), Decl::Util(Util::Ref("1".to_string()))),
+			("3".to_string(), Decl::Util(Util::Ref("~.b".to_string()))),
+			("4".to_string(), Decl::Util(Util::Ref("~.c".to_string()))),
+		])))
 	]));
 
 	let graph = level.dag.graph();
