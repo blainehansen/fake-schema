@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 use serde_json::Value as Val;
+use jsonptr::PointerBuf;
 
 mod inspect;
 mod parse;
@@ -22,7 +23,7 @@ struct Info {
 #[derive(Debug)]
 struct Ctx {
 	rng: fake::rand::rngs::ThreadRng,
-	current_path: Vec<String>,
+	current_path: PointerBuf,
 	generated: Val,
 }
 
@@ -35,7 +36,7 @@ fn main() -> anyhow::Result<()> {
 
 	let (levels_fields, decl) = inspect::inspect_input_declaration(decl)?;
 
-	// let level = levels_fields.into_iter().find_map(|(k, v)| if k == "~" { Some(v) } else { None }).unwrap();
+	// let level = levels_fields.into_iter().find_map(|(k, v)| if k == "/" { Some(v) } else { None }).unwrap();
 	// let graph = level.dag.graph();
 	// let topo_order = daggy::petgraph::algo::toposort(graph, None).unwrap();
 	// use daggy::petgraph::visit::IntoNodeReferences;
@@ -51,7 +52,7 @@ fn main() -> anyhow::Result<()> {
 	let default_locale = Locale::EN;
 	let i = Info { levels_fields, default_locale };
 	let mut ctx = Ctx {
-		rng: fake::rand::rng(), current_path: vec!["~".to_string()], generated: Val::Null,
+		rng: fake::rand::rng(), current_path: PointerBuf::root(), generated: Val::Null,
 	};
 
 	generate_declaration(&i, &mut ctx, &decl)?;
@@ -76,90 +77,87 @@ fn generate_declaration(i: &Info, ctx: &mut Ctx, decl: &Declaration) -> anyhow::
 	Ok(())
 }
 
-fn generate_util(i: &Info, ctx: &mut Ctx, util: &Util) -> anyhow::Result<()> {
-	unimplemented!()
-}
-
-fn generate_object(i: &Info, ctx: &mut Ctx, obj: &Obj) -> anyhow::Result<()> {
-	let level_name = ctx.current_path.join(".");
-	let ordered_fields = i.levels_fields.get(&level_name)
-		.ok_or_else(|| anyhow::anyhow!("couldn't find fields for {level_name}"))?;
-
-	let mut generated = HashMap::new();
-	for field_name in ordered_fields {
-		let field_decl = obj.get(field_name)
-			.ok_or_else(|| anyhow::anyhow!("couldn't find declaration for {field_name}"))?;
-
-		// TODO hmmm
-		// I think we need to both return what we just generated *and* stick it in the generated context
-		let v = generate_declaration(i, ctx, field_decl);
-
-		generated.insert(field_name, v);
-	}
-
-	*ctx.generated.pointer_mut(&level_name)
-		.ok_or_else(|| anyhow::anyhow!("couldn't find declaration for {level_name}"))? = generated.into();
-	Ok(())
-}
-
-// fn generate_root_declaration(
-// 	rng: &mut ThreadRng,
-// 	decl: InputDeclaration,
-// 	default_locale: Locale,
-// ) -> anyhow::Result<serde_json::Value> {
-// 	// use fake::{Fake, /*Faker*/};
-// 	match decl {
-// 		InputDeclaration::ShorthandUtil(parse::ShorthandUtil(util)) => generate_util(rng, util, default_locale),
-// 		InputDeclaration::LonghandUtil(util) => generate_util(rng, util, default_locale),
-// 		InputDeclaration::Object(obj) => ,
-// 	}
-
-
-// 	Ok(val)
-// }
-
-
-// macro_rules! gen_locale {
-// 	($faker_path:path, $locale_var:ident, $rng:ident) => {
-// 		match $locale_var {
-// 			Locale::AR_SA => $faker_path(fake::locales::AR_SA).fake_with_rng($rng),
-// 			Locale::DE_DE => $faker_path(fake::locales::DE_DE).fake_with_rng($rng),
-// 			Locale::EN => $faker_path(fake::locales::EN).fake_with_rng($rng),
-// 			Locale::FR_FR => $faker_path(fake::locales::FR_FR).fake_with_rng($rng),
-// 			Locale::IT_IT => $faker_path(fake::locales::IT_IT).fake_with_rng($rng),
-// 			Locale::JA_JP => $faker_path(fake::locales::JA_JP).fake_with_rng($rng),
-// 			Locale::PT_BR => $faker_path(fake::locales::PT_BR).fake_with_rng($rng),
-// 			Locale::PT_PT => $faker_path(fake::locales::PT_PT).fake_with_rng($rng),
-// 			Locale::ZH_CN => $faker_path(fake::locales::ZH_CN).fake_with_rng($rng),
-// 			Locale::ZH_TW => $faker_path(fake::locales::ZH_TW).fake_with_rng($rng),
-// 		}
-// 	};
-// }
-
-type Pattern = String;
-
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "#util")]
+#[derive(Debug, Clone)]
 pub enum Util {
-	Ref(Pattern),
+	Ref{ pattern: jsonptr::PointerBuf, relative: bool },
 	FirstName,
 	LastName,
 }
 
-// fn generate_util(
-// 	rng: &mut ThreadRng,
-// 	util: Util,
-// 	default_locale: Locale,
-// ) -> anyhow::Result<serde_json::Value> {
-// 	use fake::{Fake, /*Faker*/};
-// 	use Util::*;
-// 	let val = match util {
-// 		FirstName => Val::String(gen_locale!(fake::faker::name::raw::FirstName, default_locale, rng)),
-// 		LastName => Val::String(gen_locale!(fake::faker::name::raw::LastName, default_locale, rng)),
-// 	};
+macro_rules! gen_locale {
+	($faker_path:path, $info_ident:ident, $ctx_ident:ident) => {
+		match $info_ident.default_locale {
+			Locale::AR_SA => $faker_path(fake::locales::AR_SA).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::DE_DE => $faker_path(fake::locales::DE_DE).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::EN => $faker_path(fake::locales::EN).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::FR_FR => $faker_path(fake::locales::FR_FR).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::IT_IT => $faker_path(fake::locales::IT_IT).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::JA_JP => $faker_path(fake::locales::JA_JP).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::PT_BR => $faker_path(fake::locales::PT_BR).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::PT_PT => $faker_path(fake::locales::PT_PT).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::ZH_CN => $faker_path(fake::locales::ZH_CN).fake_with_rng(&mut $ctx_ident.rng),
+			Locale::ZH_TW => $faker_path(fake::locales::ZH_TW).fake_with_rng(&mut $ctx_ident.rng),
+		}
+	};
+}
 
-// 	Ok(val)
-// }
+fn generate_util(i: &Info, ctx: &mut Ctx, util: &Util) -> anyhow::Result<()> {
+	use fake::{Fake, /*Faker*/};
+	use Util::*;
+	let val = match util {
+		FirstName => Val::String(gen_locale!(fake::faker::name::raw::FirstName, i, ctx)),
+		LastName => Val::String(gen_locale!(fake::faker::name::raw::LastName, i, ctx)),
+		Ref { pattern, relative } => resolve_ref(pattern, relative, &ctx)?.clone(),
+	};
+
+	println!("{:?}", ctx.current_path);
+	println!("{:?}", ctx.generated);
+	// *ctx.generated.pointer_mut(ctx.current_path.as_str())
+	// 	.ok_or_else(|| anyhow::anyhow!("uh oh"))? = val;
+	ctx.current_path.assign(&mut ctx.generated, val)?;
+
+	Ok(())
+}
+
+fn resolve_ref<'c>(pattern: &PointerBuf, relative: &bool, ctx: &'c Ctx) -> anyhow::Result<&'c Val> {
+	if *relative {
+		// TODO this is what we maybe avoid by fully qualifying refs upfront
+		// this allocation to create a fully qualified one
+		Ok(ctx.current_path.concat(pattern).resolve(&ctx.generated)?)
+	}
+	else {
+		Ok(pattern.resolve(&ctx.generated)?)
+	}
+}
+
+
+fn generate_object(i: &Info, ctx: &mut Ctx, obj: &Obj) -> anyhow::Result<()> {
+	let mut fields = obj.keys().collect::<Vec<_>>();
+	let ordering = i.levels_fields.get(&ctx.current_path)
+		.map(|o| o.as_slice())
+		.unwrap_or(&[])
+		.iter().collect::<Vec<_>>();
+	let ordering = dbg!(ordering);
+	// sort by the ordering
+	fields.sort_by_key(|item| ordering.iter().position(|ord| ord.decoded() == item.as_str()).unwrap_or(usize::MAX));
+	let ordered_fields = dbg!(fields);
+
+	*ctx.current_path.resolve_mut(&mut ctx.generated)? = serde_json::json!({});
+
+	for field_name in ordered_fields {
+		println!("field_name={field_name}");
+
+		let field_decl = obj.get(field_name)
+			.ok_or_else(|| anyhow::anyhow!("couldn't find declaration for {field_name}"))?;
+
+		ctx.current_path.push_back(field_name);
+		generate_declaration(i, ctx, field_decl)?;
+		ctx.current_path.pop_back();
+	}
+
+	Ok(())
+}
+
 
 #[derive(Debug, serde::Deserialize)]
 #[allow(non_camel_case_types)]

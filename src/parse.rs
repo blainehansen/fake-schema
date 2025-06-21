@@ -1,17 +1,16 @@
 use std::collections::HashMap;
-use crate::Util;
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(untagged)]
 pub(crate) enum InputDeclaration {
 	ShorthandUtil(ShorthandUtil),
-	LonghandUtil(Util),
+	LonghandUtil(InputUtil),
 	Object(HashMap<String, InputDeclaration>),
 }
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(try_from = "String")]
-pub(crate) struct ShorthandUtil(pub Util);
+pub(crate) struct ShorthandUtil(pub InputUtil);
 
 impl TryFrom<String> for ShorthandUtil {
 	type Error = anyhow::Error;
@@ -24,24 +23,53 @@ impl TryFrom<String> for ShorthandUtil {
 	}
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(tag = "#util")]
+pub enum InputUtil {
+	Ref{ pattern: String },
+	FirstName,
+	LastName,
+}
+
+
 use nom::{
  IResult, Parser,
- // number,
  branch::alt,
- bytes::{complete::tag, /*is_not, take_while1*/},
- combinator::{all_consuming, /*map,*/ value},
- // multi::separated_list1,
+ bytes::complete::tag,
+ character::complete::{char as ch, alpha1, alphanumeric1},
+ combinator::{all_consuming, recognize, map, value},
+ multi::{many0, separated_list1},
+ sequence::pair,
  // sequence::{delimited, separated_pair},
 };
 
-fn parse_util(input: &str) -> IResult<&str, Util> {
-	parse_atom(input)
+fn parse_util(input: &str) -> IResult<&str, InputUtil> {
+	alt((
+		parse_atom,
+		parse_ref,
+	)).parse(input)
 }
 
-fn parse_atom(input: &str) -> IResult<&str, Util> {
+fn ident(input: &str) -> IResult<&str, &str> {
+	recognize(
+		pair(
+			alt((alpha1, tag("_"))),
+			many0(alt((alphanumeric1, tag("_"))))
+		),
+	).parse(input)
+}
+
+fn parse_ref(input: &str) -> IResult<&str, InputUtil> {
+	map(alt((
+		recognize(pair(ch('/'), separated_list1(ch('/'), ident))),
+		recognize(separated_list1(ch('/'), ident)),
+	)), |pattern| InputUtil::Ref { pattern: pattern.to_string() }).parse(input)
+}
+
+fn parse_atom(input: &str) -> IResult<&str, InputUtil> {
 	alt((
-	  value(Util::FirstName, tag("FirstName")),
-	  value(Util::LastName, tag("LastName")),
+		value(InputUtil::FirstName, tag("FirstName")),
+		value(InputUtil::LastName, tag("LastName")),
 	)).parse(input)
 }
 

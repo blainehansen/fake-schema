@@ -1,1 +1,12 @@
-{ "#util": "LastName"}
+{
+	"a": "FirstName",
+	"b": "LastName",
+	"c": "a",
+	"d": "/b",
+	"obj": {
+		"o1": "/a",
+		"o2": "o1",
+		"o3": "FirstName",
+		"o4": "/obj/o3"
+	}
+}
