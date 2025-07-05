@@ -213,7 +213,7 @@ mod tests {
 		let b_idx = v.iter().position(|x| x == b).unwrap();
 		a_idx < b_idx
 	}
-	fn deps_correct(fields: &HashMap<PointerBuf, Vec<String>>, pairs: HashMap<&str, &[(&str, &str)]>) -> bool {
+	fn deps_correct(fields: &HashMap<PointerBuf, Vec<Tok>>, pairs: HashMap<&str, &[(&str, &str)]>) -> bool {
 		for (level_name, ordered_fields) in fields {
 			for (a, b) in *pairs.get(level_name.as_str()).unwrap() {
 				if is_before(ordered_fields, a, b) {

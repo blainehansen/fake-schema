@@ -1,3 +1,9 @@
+For relative references inside objects, the context we want to look at is the context of the object we're generating, not of the entire thing, because we want to skip going all the way up the path to get to where we already are
+
+Maybe have total generated and relative generated?
+
+
+
 https://clickhouse.com/docs/getting-started/example-datasets
 
 
