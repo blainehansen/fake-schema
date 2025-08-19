@@ -5,7 +5,8 @@ use jsonptr::PointerBuf;
 
 pub(crate) type Tok = jsonptr::Token<'static>;
 
-pub(crate) type Levels = HashMap<PointerBuf, Vec<Tok>>;
+// pub(crate) type Levels = HashMap<PointerBuf, Vec<Tok>>;
+pub(crate) type Levels = HashMap<PointerBuf, Vec<PointerBuf>>;
 
 #[derive(Debug, Default)]
 struct LevelDag {
@@ -59,12 +60,7 @@ fn inspect_object(
 	for (field_name, field_decl) in decl {
 		current_path.push_back(&field_name);
 
-		let new_field_decl = match field_decl {
-			InputDeclaration::ShorthandUtil(parse::ShorthandUtil(util)) | InputDeclaration::LonghandUtil(util)
-				=> Declaration::Util(inspect_util(dags, current_path, util)?),
-			InputDeclaration::Object(obj_decl)
-				=> Declaration::Object(inspect_object(dags, current_path, obj_decl)?),
-		};
+		let new_field_decl = inspect_decl(dags, current_path, field_decl)?;
 		give.insert(field_name, new_field_decl);
 
 		current_path.pop_back();

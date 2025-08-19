@@ -24,7 +24,8 @@ struct Info {
 struct Ctx {
 	rng: fake::rand::rngs::ThreadRng,
 	current_path: PointerBuf,
-	generated: Val,
+	outer_generated: Val,
+	current_generated: Val,
 }
 
 fn main() -> anyhow::Result<()> {
